@@ -1,0 +1,32 @@
+Use
+Python 3.12 
+Any modern pytest version (7.x or 8.x) will work
+
+bash
+pip install pytest pytest-html scapy --break-system-packages -q 2>&1 | tail -5
+
+bash
+python3 -c "import pytest; print(pytest.__version__)" 2>/dev/null || echo "not found"
+python3 -c "import struct, socket, ipaddress, enum, dataclasses; print('stdlib ok')"
+Output
+not found
+stdlib ok
+
+ash
+
+which pytest || python3 -m pytest --version 2>/dev/null || echo "no pytest"
+find / -name "pytest" 2>/dev/null | head -5
+Output
+
+no pytest
+
+bash
+
+python3 -m unittest --version 2>&1; python3 --version
+Output
+
+usage: python3 -m unittest [-h] [-v] [-q] [--locals] [--durations N] [-f] [-c]
+                           [-b] [-k TESTNAMEPATTERNS]
+                           [tests ...]
+python3 -m unittest: error: unrecognized arguments: --version
+Python 3.12.3
