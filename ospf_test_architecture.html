@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSPF Protocol Test Suite — Architecture & Topology</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg:        #0a0e14;
+    --bg2:       #0f1520;
+    --bg3:       #161e2e;
+    --border:    #1e2d45;
+    --accent1:   #00e5ff;
+    --accent2:   #00ff9d;
+    --accent3:   #ff6b35;
+    --accent4:   #a855f7;
+    --accent5:   #fbbf24;
+    --text:      #c8d8e8;
+    --text-dim:  #5a7a9a;
+    --text-hi:   #ffffff;
+    --pass:      #00ff9d;
+    --fail:      #ff4444;
+    --warn:      #fbbf24;
+    --glow1:     rgba(0,229,255,0.15);
+    --glow2:     rgba(0,255,157,0.12);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── GRID BACKGROUND ─────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── HEADER ──────────────────────────────────── */
+  .header {
+    position: relative; z-index: 10;
+    padding: 48px 48px 32px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0,229,255,0.05) 0%, transparent 100%);
+  }
+  .header-tag {
+    font-size: 10px; letter-spacing: 4px; text-transform: uppercase;
+    color: var(--accent1); margin-bottom: 12px; opacity: 0.8;
+  }
+  .header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(26px, 4vw, 44px); font-weight: 800;
+    color: var(--text-hi); line-height: 1.1; margin-bottom: 10px;
+    letter-spacing: -1px;
+  }
+  .header h1 span { color: var(--accent1); }
+  .header-sub {
+    font-size: 12px; color: var(--text-dim); letter-spacing: 1px;
+  }
+
+  .header-stats {
+    display: flex; gap: 32px; margin-top: 28px; flex-wrap: wrap;
+  }
+  .stat-pill {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 18px;
+  }
+  .stat-pill .val {
+    font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800;
+  }
+  .stat-pill .lbl { font-size: 10px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; }
+  .stat-pill.green .val { color: var(--accent2); }
+  .stat-pill.cyan  .val { color: var(--accent1); }
+  .stat-pill.orange .val { color: var(--accent3); }
+  .stat-pill.purple .val { color: var(--accent4); }
+  .stat-pill.yellow .val { color: var(--accent5); }
+
+  /* ── LAYOUT ──────────────────────────────────── */
+  .main {
+    position: relative; z-index: 1;
+    padding: 40px 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 1100px) { .main { grid-template-columns: 1fr; } }
+
+  .full-width { grid-column: 1 / -1; }
+
+  /* ── SECTION CARD ────────────────────────────── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg3);
+  }
+  .card-header .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .dot-cyan   { background: var(--accent1); box-shadow: 0 0 6px var(--accent1); }
+  .dot-green  { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+  .dot-orange { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+  .dot-purple { background: var(--accent4); box-shadow: 0 0 6px var(--accent4); }
+  .dot-yellow { background: var(--accent5); box-shadow: 0 0 6px var(--accent5); }
+
+  .card-header h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--text-hi);
+  }
+  .card-header .rfc-tag {
+    margin-left: auto; font-size: 9px; letter-spacing: 2px;
+    color: var(--text-dim); text-transform: uppercase;
+  }
+  .card-body { padding: 20px 22px; }
+
+  /* ── TEST SUITE ROWS ─────────────────────────── */
+  .suite-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 8px; align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(30,45,69,0.6);
+    animation: fadeIn 0.4s ease both;
+  }
+  .suite-row:last-child { border-bottom: none; }
+  .suite-name {
+    font-size: 11px; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .suite-name .icon { color: var(--accent1); font-size: 12px; }
+  .suite-count {
+    font-size: 10px; color: var(--text-dim);
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 3px;
+  }
+  .suite-status {
+    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 3px; font-weight: 600;
+  }
+  .status-pass { background: rgba(0,255,157,0.12); color: var(--pass); border: 1px solid rgba(0,255,157,0.3); }
+  .status-fail { background: rgba(255,68,68,0.12); color: var(--fail); border: 1px solid rgba(255,68,68,0.3); }
+  .status-fix  { background: rgba(251,191,36,0.12); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+
+  .suite-bar-wrap {
+    grid-column: 1 / -1;
+    height: 3px; background: var(--border);
+    border-radius: 2px; overflow: hidden;
+  }
+  .suite-bar {
+    height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent1));
+  }
+
+  /* ── RFC LAYER DIAGRAM ───────────────────────── */
+  .layer-stack { display: flex; flex-direction: column; gap: 6px; }
+  .layer {
+    border-radius: 8px; padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1px solid;
+    transition: transform 0.2s;
+    cursor: default;
+  }
+  .layer:hover { transform: translateX(4px); }
+  .layer .lname {
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .layer .ldesc { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+  .layer .lrfc  { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+
+  .layer-1 { background: rgba(0,229,255,0.07); border-color: rgba(0,229,255,0.25); }
+  .layer-1 .lname { color: var(--accent1); }
+  .layer-1 .lrfc  { color: var(--accent1); opacity: 0.7; }
+
+  .layer-2 { background: rgba(0,255,157,0.06); border-color: rgba(0,255,157,0.2); }
+  .layer-2 .lname { color: var(--accent2); }
+  .layer-2 .lrfc  { color: var(--accent2); opacity: 0.7; }
+
+  .layer-3 { background: rgba(255,107,53,0.06); border-color: rgba(255,107,53,0.2); }
+  .layer-3 .lname { color: var(--accent3); }
+  .layer-3 .lrfc  { color: var(--accent3); opacity: 0.7; }
+
+  .layer-4 { background: rgba(168,85,247,0.06); border-color: rgba(168,85,247,0.2); }
+  .layer-4 .lname { color: var(--accent4); }
+  .layer-4 .lrfc  { color: var(--accent4); opacity: 0.7; }
+
+  .layer-5 { background: rgba(251,191,36,0.06); border-color: rgba(251,191,36,0.2); }
+  .layer-5 .lname { color: var(--accent5); }
+  .layer-5 .lrfc  { color: var(--accent5); opacity: 0.7; }
+
+  /* ── SVG NETWORK TOPOLOGY ────────────────────── */
+  .topo-wrap {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 16px;
+    overflow: auto;
+  }
+  .topo-wrap svg { display: block; margin: auto; }
+
+  /* ── FILE TREE ───────────────────────────────── */
+  .tree { font-size: 11px; line-height: 2; }
+  .tree-dir  { color: var(--accent1); font-weight: 600; }
+  .tree-file { color: var(--text); }
+  .tree-new  { color: var(--accent2); }
+  .tree-lib  { color: var(--accent3); }
+  .tree-indent { display: inline-block; width: 20px; }
+  .tree-connector { color: var(--text-dim); }
+
+  /* ── MODULE TABLE ────────────────────────────── */
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 900px) { .module-grid { grid-template-columns: 1fr 1fr; } }
+  .module-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    background: var(--bg3);
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .module-card:hover {
+    border-color: var(--accent1);
+    transform: translateY(-2px);
+  }
+  .module-card .mc-name {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    color: var(--text-hi); margin-bottom: 4px;
+  }
+  .module-card .mc-file { font-size: 9px; color: var(--text-dim); margin-bottom: 8px; }
+  .module-card .mc-desc { font-size: 10px; color: var(--text); line-height: 1.5; }
+  .module-card .mc-badge {
+    display: inline-block; font-size: 8px; letter-spacing: 1.5px;
+    text-transform: uppercase; padding: 2px 6px; border-radius: 3px;
+    margin-top: 8px;
+  }
+  .badge-new    { background: rgba(0,255,157,0.15); color: var(--accent2); border: 1px solid rgba(0,255,157,0.3); }
+  .badge-core   { background: rgba(0,229,255,0.1); color: var(--accent1); border: 1px solid rgba(0,229,255,0.25); }
+  .badge-ext    { background: rgba(168,85,247,0.1); color: var(--accent4); border: 1px solid rgba(168,85,247,0.25); }
+
+  /* ── ANIMATION ───────────────────────────────── */
+  @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+  @keyframes scanline {
+    0%   { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+  }
+  .scanline {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(transparent, rgba(0,229,255,0.08), transparent);
+    animation: scanline 8s linear infinite;
+    pointer-events: none; z-index: 9999;
+  }
+
+  /* ── LEGEND ──────────────────────────────────── */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-dim); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ── FOOTER ──────────────────────────────────── */
+  .footer {
+    position: relative; z-index: 1;
+    padding: 24px 48px;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .footer-left { font-size: 10px; color: var(--text-dim); letter-spacing: 2px; }
+  .footer-right { font-size: 10px; color: var(--accent1); opacity: 0.6; }
+
+  /* ── FSM MINI DIAGRAM ────────────────────────── */
+  .fsm-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 0; border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .fsm-row:last-child { border-bottom: none; }
+  .fsm-state {
+    font-size: 10px; padding: 4px 10px; border-radius: 20px;
+    border: 1px solid; white-space: nowrap;
+  }
+  .fs-down    { border-color: #334155; color: #64748b; background: rgba(51,65,85,0.3); }
+  .fs-init    { border-color: rgba(251,191,36,0.4); color: var(--accent5); background: rgba(251,191,36,0.08); }
+  .fs-2way    { border-color: rgba(255,107,53,0.4); color: var(--accent3); background: rgba(255,107,53,0.08); }
+  .fs-exstart { border-color: rgba(168,85,247,0.4); color: var(--accent4); background: rgba(168,85,247,0.08); }
+  .fs-full    { border-color: rgba(0,255,157,0.5); color: var(--accent2); background: rgba(0,255,157,0.1); font-weight: 600; }
+  .fs-arrow   { color: var(--text-dim); font-size: 12px; }
+  .fsm-label  { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<!-- ══ HEADER ═══════════════════════════════════════════════════ -->
+<div class="header">
+  <div class="header-tag">// OSPF Protocol Test Suite — Architecture Documentation</div>
+  <h1>Test <span>Architecture</span> &amp; Topology</h1>
+  <div class="header-sub">RFC 2328 · RFC 5340 · RFC 3623 · RFC 3630 · RFC 4203 · IEEE 802</div>
+
+  <div class="header-stats">
+    <div class="stat-pill cyan">
+      <div>
+        <div class="val">631</div>
+        <div class="lbl">Total Tests</div>
+      </div>
+    </div>
+    <div class="stat-pill green">
+      <div>
+        <div class="val">12</div>
+        <div class="lbl">Test Suites</div>
+      </div>
+    </div>
+    <div class="stat-pill orange">
+      <div>
+        <div class="val">8</div>
+        <div class="lbl">Library Modules</div>
+      </div>
+    </div>
+    <div class="stat-pill purple">
+      <div>
+        <div class="val">6</div>
+        <div class="lbl">RFC Standards</div>
+      </div>
+    </div>
+    <div class="stat-pill yellow">
+      <div>
+        <div class="val">360</div>
+        <div class="lbl">v1 Passing</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN GRID ═════════════════════════════════════════════════ -->
+<div class="main">
+
+  <!-- ── TEST SUITE INVENTORY ─────────────────────────────────── -->
+  <div class="card full-width">
+    <div class="card-header">
+      <div class="dot dot-cyan"></div>
+      <h2>Test Suite Inventory</h2>
+      <span class="rfc-tag">12 suites · 631 tests</span>
+    </div>
+    <div class="card-body">
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 40px;">
+
+        <div>
+          <!-- V1 ORIGINAL SUITES -->
+          <div style="font-size:9px; letter-spacing:3px; color:var(--accent1); text-transform:uppercase; margin-bottom:12px; opacity:0.8;">── v1 Core Suite (360 tests)</div>
+
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>OSPF Header</div>
+            <div class="suite-count">31 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>Hello Packet</div>
+            <div class="suite-count">41 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>LSA Types</div>
+            <div class="suite-count">62 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>DBD / LSR / LSU / LSAck</div>
+            <div class="suite-count">35 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>Neighbor FSM</div>
+            <div class="suite-count">56 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>Interface FSM + DR/BDR</div>
+            <div class="suite-count">47 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>SPF Algorithm</div>
+            <div class="suite-count">29 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>Areas + Auth + IEEE 802</div>
+            <div class="suite-count">59 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+        </div>
+
+        <div>
+          <!-- V2 EXTENSION SUITES -->
+          <div style="font-size:9px; letter-spacing:3px; color:var(--accent2); text-transform:uppercase; margin-bottom:12px; opacity:0.8;">── v2 Extensions (271 tests)</div>
+
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>OSPFv3 / IPv6</div>
+            <div class="suite-count">96 tests</div>
+            <div class="suite-status status-fix">FIXING</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:93%; background:linear-gradient(90deg,var(--accent2),var(--accent5))"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>Graceful Restart</div>
+            <div class="suite-count">61 tests</div>
+            <div class="suite-status status-fix">FIXING</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:97%; background:linear-gradient(90deg,var(--accent2),var(--accent5))"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>TE Extensions (RFC 3630)</div>
+            <div class="suite-count">73 tests</div>
+            <div class="suite-status status-pass">PASS</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:100%"></div></div>
+          </div>
+          <div class="suite-row">
+            <div class="suite-name"><span class="icon">▸</span>Multi-Router Integration</div>
+            <div class="suite-count">41 tests</div>
+            <div class="suite-status status-fix">FIXING</div>
+            <div></div>
+            <div class="suite-bar-wrap"><div class="suite-bar" style="width:73%; background:linear-gradient(90deg,var(--accent2),var(--accent5))"></div></div>
+          </div>
+
+          <div style="margin-top:20px; padding:14px; background:var(--bg3); border:1px solid var(--border); border-radius:8px;">
+            <div style="font-size:9px; letter-spacing:2px; color:var(--accent5); text-transform:uppercase; margin-bottom:10px;">In-Progress Fix Targets</div>
+            <div style="font-size:10px; color:var(--text-dim); line-height:2;">
+              <span style="color:var(--warn)">▸</span> OSPFv3Hello.encode() struct format mismatch<br>
+              <span style="color:var(--warn)">▸</span> GraceTLV.decode() return tuple signature<br>
+              <span style="color:var(--warn)">▸</span> Integration: router_id must be dotted-quad IP<br>
+              <span style="color:var(--warn)">▸</span> GracefulRestart: grace_period boundary logic
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RFC LAYER STACK ───────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="dot dot-orange"></div>
+      <h2>RFC Coverage Stack</h2>
+    </div>
+    <div class="card-body">
+      <div class="layer-stack">
+        <div class="layer layer-5">
+          <div>
+            <div class="lname">Segment Routing / SRLG</div>
+            <div class="ldesc">Shared Risk Link Groups · Disjoint path analysis</div>
+          </div>
+          <div class="lrfc">RFC 4203</div>
+        </div>
+        <div class="layer layer-4">
+          <div>
+            <div class="lname">Traffic Engineering Extensions</div>
+            <div class="ldesc">Opaque LSA Type 10 · TE TLVs · Bandwidth sub-TLVs</div>
+          </div>
+          <div class="lrfc">RFC 3630</div>
+        </div>
+        <div class="layer layer-3">
+          <div>
+            <div class="lname">Graceful Restart</div>
+            <div class="ldesc">Grace-LSA · Helper mode · NSF · Hitless restart</div>
+          </div>
+          <div class="lrfc">RFC 3623 / 5187</div>
+        </div>
+        <div class="layer layer-2">
+          <div>
+            <div class="lname">OSPFv3 / IPv6</div>
+            <div class="ldesc">Instance ID · Link-LSA · Intra-Area-Prefix-LSA · ff02::5</div>
+          </div>
+          <div class="lrfc">RFC 5340</div>
+        </div>
+        <div class="layer layer-1">
+          <div>
+            <div class="lname">OSPFv2 Core Protocol</div>
+            <div class="ldesc">Header · Hello · LSA · FSM · SPF · Areas · Auth · IEEE 802</div>
+          </div>
+          <div class="lrfc">RFC 2328</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NEIGHBOR FSM ──────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="dot dot-green"></div>
+      <h2>Neighbor State Machine</h2>
+      <span class="rfc-tag">RFC 2328 §10.3</span>
+    </div>
+    <div class="card-body">
+      <div class="fsm-row">
+        <div class="fsm-state fs-down">Down</div>
+        <div class="fs-arrow">→</div>
+        <div class="fsm-state fs-init">Init</div>
+        <div class="fs-arrow">→</div>
+        <div class="fsm-state fs-2way">2-Way</div>
+      </div>
+      <div class="fsm-row" style="padding-left:16px;">
+        <div class="fsm-state fs-2way">2-Way</div>
+        <div class="fs-arrow">→</div>
+        <div class="fsm-state fs-exstart">ExStart</div>
+        <div class="fs-arrow">→</div>
+        <div class="fsm-state" style="border-color:rgba(0,229,255,0.4);color:var(--accent1);background:rgba(0,229,255,0.07)">Exchange</div>
+      </div>
+      <div class="fsm-row" style="padding-left:32px;">
+        <div class="fsm-state" style="border-color:rgba(0,229,255,0.4);color:var(--accent1);background:rgba(0,229,255,0.07)">Exchange</div>
+        <div class="fs-arrow">→</div>
+        <div class="fsm-state" style="border-color:rgba(168,85,247,0.4);color:var(--accent4);background:rgba(168,85,247,0.07)">Loading</div>
+        <div class="fs-arrow">→</div>
+        <div class="fsm-state fs-full">Full ●</div>
+      </div>
+      <div style="margin-top:14px; padding:12px; background:var(--bg3); border:1px solid var(--border); border-radius:6px;">
+        <div style="font-size:9px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Event Coverage (56 tests)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <span style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:3px;color:var(--accent1)">HelloReceived</span>
+          <span style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:3px;color:var(--accent1)">2WayReceived</span>
+          <span style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:3px;color:var(--accent1)">AdjOK</span>
+          <span style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:3px;color:var(--accent1)">NegotiationDone</span>
+          <span style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:3px;color:var(--accent1)">ExchangeDone</span>
+          <span style="font-size:9px;padding:3px 8px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);border-radius:3px;color:var(--accent1)">LoadingDone</span>
+          <span style="font-size:9px;padding:3px 8px;background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.25);border-radius:3px;color:#ff7777">KillNbr</span>
+          <span style="font-size:9px;padding:3px 8px;background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.25);border-radius:3px;color:#ff7777">LLDown</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NETWORK TOPOLOGY SVG ──────────────────────────────────── -->
+  <div class="card full-width">
+    <div class="card-header">
+      <div class="dot dot-cyan"></div>
+      <h2>Integration Test Network Topologies</h2>
+      <span class="rfc-tag">Multi-Router Simulation</span>
+    </div>
+    <div class="card-body">
+      <div class="topo-wrap">
+        <svg viewBox="0 0 900 520" width="100%" style="max-width:900px">
+          <defs>
+            <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L6,3 z" fill="rgba(0,229,255,0.5)"/>
+            </marker>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-green">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <radialGradient id="node-grad-cyan" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(0,229,255,0.3)"/>
+              <stop offset="100%" stop-color="rgba(0,229,255,0.05)"/>
+            </radialGradient>
+            <radialGradient id="node-grad-green" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(0,255,157,0.3)"/>
+              <stop offset="100%" stop-color="rgba(0,255,157,0.05)"/>
+            </radialGradient>
+            <radialGradient id="node-grad-orange" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(255,107,53,0.3)"/>
+              <stop offset="100%" stop-color="rgba(255,107,53,0.05)"/>
+            </radialGradient>
+            <radialGradient id="node-grad-purple" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(168,85,247,0.3)"/>
+              <stop offset="100%" stop-color="rgba(168,85,247,0.05)"/>
+            </radialGradient>
+          </defs>
+
+          <!-- BG labels -->
+          <text x="20" y="24" fill="rgba(0,229,255,0.4)" font-size="10" font-family="JetBrains Mono" letter-spacing="3">POINT-TO-POINT</text>
+          <text x="320" y="24" fill="rgba(0,255,157,0.4)" font-size="10" font-family="JetBrains Mono" letter-spacing="3">LINEAR / RING</text>
+          <text x="620" y="24" fill="rgba(168,85,247,0.4)" font-size="10" font-family="JetBrains Mono" letter-spacing="3">SPINE-LEAF</text>
+          <text x="20" y="300" fill="rgba(255,107,53,0.4)" font-size="10" font-family="JetBrains Mono" letter-spacing="3">HUB-AND-SPOKE</text>
+          <text x="340" y="300" fill="rgba(251,191,36,0.4)" font-size="10" font-family="JetBrains Mono" letter-spacing="3">MULTI-AREA (ABR)</text>
+
+          <!-- divider lines -->
+          <line x1="300" y1="10" x2="300" y2="280" stroke="rgba(30,45,69,0.8)" stroke-width="1" stroke-dasharray="4,4"/>
+          <line x1="600" y1="10" x2="600" y2="280" stroke="rgba(30,45,69,0.8)" stroke-width="1" stroke-dasharray="4,4"/>
+          <line x1="0" y1="285" x2="900" y2="285" stroke="rgba(30,45,69,0.8)" stroke-width="1" stroke-dasharray="4,4"/>
+          <line x1="320" y1="285" x2="320" y2="520" stroke="rgba(30,45,69,0.8)" stroke-width="1" stroke-dasharray="4,4"/>
+
+          <!-- ═══════════ TOPOLOGY 1: P2P ═══════════ -->
+          <line x1="80" y1="155" x2="220" y2="155" stroke="rgba(0,229,255,0.4)" stroke-width="2"/>
+          <text x="148" y="148" fill="rgba(0,229,255,0.5)" font-size="9" font-family="JetBrains Mono" text-anchor="middle">cost=10</text>
+          <!-- Hello arrows -->
+          <line x1="90" y1="162" x2="210" y2="162" stroke="rgba(0,229,255,0.25)" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrow)"/>
+          <line x1="210" y1="170" x2="90" y2="170" stroke="rgba(0,229,255,0.25)" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrow)"/>
+          <!-- Nodes -->
+          <circle cx="60" cy="155" r="26" fill="url(#node-grad-cyan)" stroke="rgba(0,229,255,0.6)" stroke-width="1.5" filter="url(#glow)"/>
+          <text x="60" y="152" fill="#00e5ff" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="600">1.1.1.1</text>
+          <text x="60" y="163" fill="rgba(0,229,255,0.5)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">R1</text>
+          <circle cx="240" cy="155" r="26" fill="url(#node-grad-cyan)" stroke="rgba(0,229,255,0.6)" stroke-width="1.5" filter="url(#glow)"/>
+          <text x="240" y="152" fill="#00e5ff" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="600">2.2.2.2</text>
+          <text x="240" y="163" fill="rgba(0,229,255,0.5)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">R2</text>
+          <!-- FULL label -->
+          <rect x="120" y="180" width="60" height="18" rx="3" fill="rgba(0,255,157,0.1)" stroke="rgba(0,255,157,0.3)" stroke-width="1"/>
+          <text x="150" y="193" fill="#00ff9d" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="700">● FULL</text>
+
+          <!-- ═══════════ TOPOLOGY 2: RING ═══════════ -->
+          <!-- 4-node ring: R1(420,80) R2(540,80) R3(540,200) R4(420,200) -->
+          <line x1="420" y1="90" x2="530" y2="90" stroke="rgba(0,255,157,0.4)" stroke-width="1.5"/>
+          <line x1="540" y1="100" x2="540" y2="190" stroke="rgba(0,255,157,0.4)" stroke-width="1.5"/>
+          <line x1="530" y1="200" x2="420" y2="200" stroke="rgba(0,255,157,0.4)" stroke-width="1.5"/>
+          <line x1="410" y1="190" x2="410" y2="100" stroke="rgba(0,255,157,0.4)" stroke-width="1.5"/>
+          <!-- diagonal (not connected) -->
+
+          <circle cx="408" cy="88" r="22" fill="url(#node-grad-green)" stroke="rgba(0,255,157,0.6)" stroke-width="1.5" filter="url(#glow-green)"/>
+          <text x="408" y="85" fill="#00ff9d" font-size="8" font-family="JetBrains Mono" text-anchor="middle">1.1.1.1</text>
+          <text x="408" y="96" fill="rgba(0,255,157,0.5)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">R1</text>
+
+          <circle cx="552" cy="88" r="22" fill="url(#node-grad-green)" stroke="rgba(0,255,157,0.6)" stroke-width="1.5" filter="url(#glow-green)"/>
+          <text x="552" y="85" fill="#00ff9d" font-size="8" font-family="JetBrains Mono" text-anchor="middle">2.2.2.2</text>
+          <text x="552" y="96" fill="rgba(0,255,157,0.5)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">R2</text>
+
+          <circle cx="552" cy="202" r="22" fill="url(#node-grad-green)" stroke="rgba(0,255,157,0.6)" stroke-width="1.5" filter="url(#glow-green)"/>
+          <text x="552" y="199" fill="#00ff9d" font-size="8" font-family="JetBrains Mono" text-anchor="middle">3.3.3.3</text>
+          <text x="552" y="210" fill="rgba(0,255,157,0.5)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">R3</text>
+
+          <circle cx="408" cy="202" r="22" fill="url(#node-grad-green)" stroke="rgba(0,255,157,0.6)" stroke-width="1.5" filter="url(#glow-green)"/>
+          <text x="408" y="199" fill="#00ff9d" font-size="8" font-family="JetBrains Mono" text-anchor="middle">4.4.4.4</text>
+          <text x="408" y="210" fill="rgba(0,255,157,0.5)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">R4</text>
+
+          <text x="480" y="255" fill="rgba(0,255,157,0.5)" font-size="9" font-family="JetBrains Mono" text-anchor="middle">4-router ring · 4 adjacencies</text>
+
+          <!-- ═══════════ TOPOLOGY 3: SPINE-LEAF ═══════════ -->
+          <!-- Spines: S1(660,75) S2(780,75)  Leaves: L1..L4 y=210 -->
+          <!-- Spine to Leaf connections -->
+          <line x1="660" y1="95" x2="660" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+          <line x1="660" y1="95" x2="720" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+          <line x1="660" y1="95" x2="780" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+          <line x1="660" y1="95" x2="840" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+          <line x1="780" y1="95" x2="660" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+          <line x1="780" y1="95" x2="720" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+          <line x1="780" y1="95" x2="780" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+          <line x1="780" y1="95" x2="840" y2="185" stroke="rgba(168,85,247,0.35)" stroke-width="1.5"/>
+
+          <!-- Spines -->
+          <rect x="635" y="65" width="50" height="30" rx="5" fill="rgba(168,85,247,0.15)" stroke="rgba(168,85,247,0.6)" stroke-width="1.5"/>
+          <text x="660" y="82" fill="#a855f7" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="700">S1</text>
+          <rect x="755" y="65" width="50" height="30" rx="5" fill="rgba(168,85,247,0.15)" stroke="rgba(168,85,247,0.6)" stroke-width="1.5"/>
+          <text x="780" y="82" fill="#a855f7" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="700">S2</text>
+          <text x="720" y="60" fill="rgba(168,85,247,0.5)" font-size="8" font-family="JetBrains Mono" text-anchor="middle" letter-spacing="2">SPINE</text>
+
+          <!-- Leaves -->
+          <text x="750" y="180" fill="rgba(168,85,247,0.5)" font-size="8" font-family="JetBrains Mono" text-anchor="middle" letter-spacing="2">LEAF</text>
+          <rect x="640" y="185" width="40" height="26" rx="5" fill="rgba(168,85,247,0.1)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+          <text x="660" y="201" fill="#a855f7" font-size="9" font-family="JetBrains Mono" text-anchor="middle">L1</text>
+          <rect x="700" y="185" width="40" height="26" rx="5" fill="rgba(168,85,247,0.1)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+          <text x="720" y="201" fill="#a855f7" font-size="9" font-family="JetBrains Mono" text-anchor="middle">L2</text>
+          <rect x="760" y="185" width="40" height="26" rx="5" fill="rgba(168,85,247,0.1)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+          <text x="780" y="201" fill="#a855f7" font-size="9" font-family="JetBrains Mono" text-anchor="middle">L3</text>
+          <rect x="820" y="185" width="40" height="26" rx="5" fill="rgba(168,85,247,0.1)" stroke="rgba(168,85,247,0.4)" stroke-width="1"/>
+          <text x="840" y="201" fill="#a855f7" font-size="9" font-family="JetBrains Mono" text-anchor="middle">L4</text>
+          <text x="750" y="255" fill="rgba(168,85,247,0.5)" font-size="9" font-family="JetBrains Mono" text-anchor="middle">2 spines × 4 leaves · 8 adjacencies</text>
+
+          <!-- ═══════════ TOPOLOGY 4: HUB-AND-SPOKE ═══════════ -->
+          <!-- Hub at (160,390), Spokes at cardinal positions -->
+          <line x1="160" y1="390" x2="75" y2="340" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+          <line x1="160" y1="390" x2="250" y2="340" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+          <line x1="160" y1="390" x2="75" y2="448" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+          <line x1="160" y1="390" x2="250" y2="448" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+
+          <circle cx="160" cy="390" r="28" fill="rgba(255,107,53,0.15)" stroke="rgba(255,107,53,0.7)" stroke-width="2" filter="url(#glow)"/>
+          <text x="160" y="387" fill="#ff6b35" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="700">HUB</text>
+          <text x="160" y="399" fill="rgba(255,107,53,0.6)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">1.1.1.1</text>
+
+          <circle cx="60" cy="330" r="20" fill="rgba(255,107,53,0.08)" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+          <text x="60" y="333" fill="#ff6b35" font-size="9" font-family="JetBrains Mono" text-anchor="middle">S1</text>
+          <circle cx="260" cy="330" r="20" fill="rgba(255,107,53,0.08)" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+          <text x="260" y="333" fill="#ff6b35" font-size="9" font-family="JetBrains Mono" text-anchor="middle">S2</text>
+          <circle cx="60" cy="460" r="20" fill="rgba(255,107,53,0.08)" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+          <text x="60" y="463" fill="#ff6b35" font-size="9" font-family="JetBrains Mono" text-anchor="middle">S3</text>
+          <circle cx="260" cy="460" r="20" fill="rgba(255,107,53,0.08)" stroke="rgba(255,107,53,0.4)" stroke-width="1.5"/>
+          <text x="260" y="463" fill="#ff6b35" font-size="9" font-family="JetBrains Mono" text-anchor="middle">S4</text>
+
+          <text x="160" y="500" fill="rgba(255,107,53,0.5)" font-size="9" font-family="JetBrains Mono" text-anchor="middle">HUB carries 4 Full adjacencies</text>
+
+          <!-- ═══════════ TOPOLOGY 5: MULTI-AREA ═══════════ -->
+          <!-- Area 0: R1(480,370) -- ABR(590,370) -->
+          <!-- Area 1: ABR(590,370) -- R2(700,370) -->
+          <rect x="390" y="350" width="210" height="80" rx="8" fill="none" stroke="rgba(0,229,255,0.2)" stroke-width="1" stroke-dasharray="5,4"/>
+          <text x="400" y="370" fill="rgba(0,229,255,0.4)" font-size="8" font-family="JetBrains Mono" letter-spacing="2">AREA 0.0.0.0</text>
+
+          <rect x="590" y="350" width="210" height="80" rx="8" fill="none" stroke="rgba(251,191,36,0.2)" stroke-width="1" stroke-dasharray="5,4"/>
+          <text x="600" y="370" fill="rgba(251,191,36,0.4)" font-size="8" font-family="JetBrains Mono" letter-spacing="2">AREA 0.0.0.1</text>
+
+          <line x1="490" y1="390" x2="580" y2="390" stroke="rgba(0,229,255,0.4)" stroke-width="1.5"/>
+          <line x1="600" y1="390" x2="690" y2="390" stroke="rgba(251,191,36,0.4)" stroke-width="1.5"/>
+
+          <circle cx="475" cy="390" r="22" fill="url(#node-grad-cyan)" stroke="rgba(0,229,255,0.5)" stroke-width="1.5"/>
+          <text x="475" y="393" fill="#00e5ff" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="600">R1</text>
+
+          <!-- ABR straddles boundary -->
+          <circle cx="590" cy="390" r="24" fill="rgba(0,255,157,0.12)" stroke="rgba(0,255,157,0.7)" stroke-width="2" filter="url(#glow-green)"/>
+          <text x="590" y="387" fill="#00ff9d" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="700">ABR</text>
+          <text x="590" y="398" fill="rgba(0,255,157,0.5)" font-size="7" font-family="JetBrains Mono" text-anchor="middle">2.2.2.2</text>
+
+          <circle cx="705" cy="390" r="22" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.5)" stroke-width="1.5"/>
+          <text x="705" y="393" fill="#fbbf24" font-size="9" font-family="JetBrains Mono" text-anchor="middle" font-weight="600">R2</text>
+
+          <text x="590" y="450" fill="rgba(0,255,157,0.5)" font-size="9" font-family="JetBrains Mono" text-anchor="middle">ABR bridges backbone ↔ area 1</text>
+        </svg>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent1)"></div>P2P Pair</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>Ring / Linear</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent4)"></div>Spine-Leaf (DC)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>Hub-and-Spoke</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent5)"></div>Multi-Area ABR</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00ff9d;box-shadow:0 0 4px #00ff9d"></div>Full Adjacency</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LIBRARY MODULES ───────────────────────────────────────── -->
+  <div class="card full-width">
+    <div class="card-header">
+      <div class="dot dot-purple"></div>
+      <h2>Library Modules (ospf_lib/)</h2>
+      <span class="rfc-tag">8 modules</span>
+    </div>
+    <div class="card-body">
+      <div class="module-grid">
+        <div class="module-card">
+          <div class="mc-name">constants.py</div>
+          <div class="mc-file">ospf_lib/constants.py</div>
+          <div class="mc-desc">All RFC 2328 / IEEE 802 constants. Packet types, LSA types, timer values, auth types, multicast addresses, struct sizes.</div>
+          <span class="mc-badge badge-core">CORE</span>
+        </div>
+        <div class="module-card">
+          <div class="mc-name">packets.py</div>
+          <div class="mc-file">ospf_lib/packets.py</div>
+          <div class="mc-desc">Full encode/decode for OSPFv2 header, Hello, all LSA types (Router/Network/Summary/AS-External), DBD, LSR, LSU, LSAck. Fletcher + inet checksums.</div>
+          <span class="mc-badge badge-core">CORE</span>
+        </div>
+        <div class="module-card">
+          <div class="mc-name">state_machine.py</div>
+          <div class="mc-file">ospf_lib/state_machine.py</div>
+          <div class="mc-desc">Neighbor FSM (8 states, 8 events), Interface FSM (7 states), DR/BDR election (RFC 2328 §9.4), OSPFRouter with per-area LSDB.</div>
+          <span class="mc-badge badge-core">CORE</span>
+        </div>
+        <div class="module-card">
+          <div class="mc-name">spf.py</div>
+          <div class="mc-file">ospf_lib/spf.py</div>
+          <div class="mc-desc">Dijkstra SPF per RFC 2328 §16. SPFGraph with add_node/add_edge, build_graph_from_router_lsas(), routing table computation. INFINITY = 65535.</div>
+          <span class="mc-badge badge-core">CORE</span>
+        </div>
+        <div class="module-card">
+          <div class="mc-name">ospfv3.py</div>
+          <div class="mc-file">ospf_lib/ospfv3.py</div>
+          <div class="mc-desc">OSPFv3 (RFC 5340): 16-byte header with Instance ID, no auth fields, Hello without mask, 8 LSA types with 16-bit type field, Link-LSA, Intra-Area-Prefix-LSA, IPv6 prefix encoding.</div>
+          <span class="mc-badge badge-new">NEW v2</span>
+        </div>
+        <div class="module-card">
+          <div class="mc-name">graceful_restart.py</div>
+          <div class="mc-file">ospf_lib/graceful_restart.py</div>
+          <div class="mc-desc">RFC 3623/5187: Grace-LSA with TLV encoding (period/reason/IP), GracefulRestartState FSM, helper mode conditions, NSF/hitless restart support.</div>
+          <span class="mc-badge badge-new">NEW v2</span>
+        </div>
+        <div class="module-card">
+          <div class="mc-name">te_extensions.py</div>
+          <div class="mc-file">ospf_lib/te_extensions.py</div>
+          <div class="mc-desc">RFC 3630: TE Opaque LSA Type 10. Router Address TLV, Link TLV with 10 sub-TLVs (type, ID, bandwidth×3, TE metric, color). SRLG (RFC 4203). IEEE 754 float bandwidth.</div>
+          <span class="mc-badge badge-new">NEW v2</span>
+        </div>
+        <div class="module-card">
+          <div class="mc-name">integration.py</div>
+          <div class="mc-file">ospf_lib/integration.py</div>
+          <div class="mc-desc">Multi-router simulation engine. VirtualLink (in-memory message bus), SimulatedRouter with Hello exchange, OSPFNetwork orchestrates P2P, ring, spine-leaf, hub-spoke, multi-area topologies.</div>
+          <span class="mc-badge badge-new">NEW v2</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FILE TREE ─────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="dot dot-yellow"></div>
+      <h2>Project File Tree</h2>
+    </div>
+    <div class="card-body">
+      <div class="tree">
+        <div><span class="tree-dir">ospf_tests_v2/</span></div>
+        <div><span class="tree-indent">│</span><span class="tree-connector">├─ </span><span class="tree-file">run_tests.py</span></div>
+        <div><span class="tree-indent">│</span><span class="tree-connector">├─ </span><span class="tree-file">conftest.py</span></div>
+        <div><span class="tree-indent">│</span><span class="tree-connector">├─ </span><span class="tree-dir">ospf_lib/</span></div>
+        <div><span class="tree-indent">│  │</span><span class="tree-connector">├─ </span><span class="tree-lib">constants.py</span><span style="color:var(--text-dim)">  ← RFC 2328 / IEEE 802 constants</span></div>
+        <div><span class="tree-indent">│  │</span><span class="tree-connector">├─ </span><span class="tree-lib">packets.py</span><span style="color:var(--text-dim)">    ← encode/decode all packet types</span></div>
+        <div><span class="tree-indent">│  │</span><span class="tree-connector">├─ </span><span class="tree-lib">state_machine.py</span><span style="color:var(--text-dim)">  ← FSMs, DR/BDR election</span></div>
+        <div><span class="tree-indent">│  │</span><span class="tree-connector">├─ </span><span class="tree-lib">spf.py</span><span style="color:var(--text-dim)">        ← Dijkstra SPF §16</span></div>
+        <div><span class="tree-indent">│  │</span><span class="tree-connector">├─ </span><span class="tree-new">ospfv3.py</span><span style="color:var(--text-dim)">     ← NEW: RFC 5340 v3 structures</span></div>
+        <div><span class="tree-indent">│  │</span><span class="tree-connector">├─ </span><span class="tree-new">graceful_restart.py</span><span style="color:var(--text-dim)">  ← NEW: RFC 3623/5187</span></div>
+        <div><span class="tree-indent">│  │</span><span class="tree-connector">├─ </span><span class="tree-new">te_extensions.py</span><span style="color:var(--text-dim)">   ← NEW: RFC 3630/4203 TE</span></div>
+        <div><span class="tree-indent">│  └─ </span><span class="tree-new">integration.py</span><span style="color:var(--text-dim)">   ← NEW: multi-router sim</span></div>
+        <div><span class="tree-indent">│</span><span class="tree-connector">└─ </span><span class="tree-dir">tests/</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_ospf_header.py</span><span style="color:var(--text-dim)">    31 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_hello_packet.py</span><span style="color:var(--text-dim)">   41 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_lsa_types.py</span><span style="color:var(--text-dim)">      62 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_dbd_lsr_lsu_lsack.py</span><span style="color:var(--text-dim)">  35 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_neighbor_fsm.py</span><span style="color:var(--text-dim)">   56 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_interface_fsm.py</span><span style="color:var(--text-dim)">  47 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_spf_algorithm.py</span><span style="color:var(--text-dim)">  29 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-file">test_areas_auth_ieee.py</span><span style="color:var(--text-dim)">  59 tests</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-new">test_ospfv3.py</span><span style="color:var(--accent2)">         96 tests ← NEW</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-new">test_graceful_restart.py</span><span style="color:var(--accent2)">  61 tests ← NEW</span></div>
+        <div><span class="tree-indent">   │</span><span class="tree-connector">├─ </span><span class="tree-new">test_te_extensions.py</span><span style="color:var(--accent2)">  73 tests ← NEW</span></div>
+        <div><span class="tree-indent">   └─ </span><span class="tree-new">test_integration.py</span><span style="color:var(--accent2)">    41 tests ← NEW</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TE / GR DETAIL ───────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="dot dot-orange"></div>
+      <h2>TE / GR / v3 Key Structures</h2>
+    </div>
+    <div class="card-body">
+      <div style="font-size:9px;letter-spacing:2px;color:var(--accent3);text-transform:uppercase;margin-bottom:10px;">TE Opaque LSA (RFC 3630) sub-TLVs</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;">
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">1</span> Link Type (P2P/Multi-access)
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">2</span> Link ID
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">3/4</span> Local/Remote IP
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">6</span> Max Bandwidth (float)
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">7</span> Max RSVP Bandwidth
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">8</span> Unreserved BW ×8 priorities
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">9</span> TE Metric
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">10</span> Admin Group (color)
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+          <span style="color:var(--accent3)">15</span> SRLG values (RFC 4203)
+        </div>
+      </div>
+
+      <div style="font-size:9px;letter-spacing:2px;color:var(--accent2);text-transform:uppercase;margin-bottom:10px;margin-top:4px;">Graceful Restart TLVs (RFC 3623)</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px;">
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;display:flex;justify-content:space-between;">
+          <span style="color:var(--text)"><span style="color:var(--accent2)">TLV 1</span> Grace Period (seconds, max 1800)</span>
+          <span style="color:var(--text-dim)">4 bytes</span>
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;display:flex;justify-content:space-between;">
+          <span style="color:var(--text)"><span style="color:var(--accent2)">TLV 2</span> Restart Reason (0=Unknown…3=Redundant CP)</span>
+          <span style="color:var(--text-dim)">1 byte</span>
+        </div>
+        <div style="font-size:10px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;display:flex;justify-content:space-between;">
+          <span style="color:var(--text)"><span style="color:var(--accent2)">TLV 3</span> IP Interface Address (optional)</span>
+          <span style="color:var(--text-dim)">4 bytes</span>
+        </div>
+      </div>
+
+      <div style="font-size:9px;letter-spacing:2px;color:var(--accent1);text-transform:uppercase;margin-bottom:10px;">OSPFv3 vs v2 Key Differences</div>
+      <div style="font-size:10px;line-height:2;color:var(--text)">
+        <span style="color:var(--accent1)">Header:</span> 24→16 bytes · Instance ID added · No auth<br>
+        <span style="color:var(--accent1)">Hello:</span>  No network mask · Interface ID field<br>
+        <span style="color:var(--accent1)">LSA type:</span> 8-bit → 16-bit (flooding scope in bits 14-15)<br>
+        <span style="color:var(--accent1)">New LSAs:</span> Link-LSA (0x0008) · Intra-Area-Prefix (0x2009)<br>
+        <span style="color:var(--accent1)">Multicast:</span> 224.0.0.5 → ff02::5 · 224.0.0.6 → ff02::6
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══ FOOTER ════════════════════════════════════════════════════ -->
+<div class="footer">
+  <div class="footer-left">OSPF PROTOCOL TEST SUITE v2 · RFC 2328 / 5340 / 3623 / 3630 / 4203 · PYTEST-COMPATIBLE</div>
+  <div class="footer-right">631 TESTS · 12 SUITES · 8 MODULES</div>
+</div>
+
+</body>
+</html>
